@@ -1,0 +1,79 @@
+name: Common Publish
+
+on:
+  workflow_call:
+    inputs:
+      mod_id:
+        required: true
+        type: string
+      workshop_id:
+        required: true
+        type: number
+    secrets:
+      STEAM_WORKSHOP_LOGIN:
+        required: true
+      STEAM_WORKSHOP_PASSWORD:
+        required: true
+      STEAM_WORKSHOP_AUTH_CODE:
+        required: true
+
+jobs:
+  build-module:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 6.0.x
+    - name: Build
+      run: |
+        artifact=$(pwd)/bannerlord
+        mkdir -p $artifact;
+        proj="${{ inputs.mod_id }}/${{ inputs.mod_id }}.csproj";
+        dotnet clean $proj --configuration Release;
+        dotnet build $proj --configuration Release -p:GameFolder="$artifact";
+        cd $artifact
+
+    - name: Install Bannerlord.ChangelogParser
+      run: dotnet tool install -g Bannerlord.ChangelogParser;
+      shell: pwsh
+
+    - name: Run ChangelogParser
+      id: changelog
+      run: |
+        vers="$(bannerlord_changelog_parser latestversion -f "$PWD/changelog.txt")"
+        echo "::set-output name=mod_version::$vers"
+        desc="$(bannerlord_changelog_parser fulldescription -f "$PWD/changelog.txt")"
+        desc="${desc//'%'/'%25'}"
+        desc="${desc//$'\n'/'%0A'}"
+        desc="${desc//$'\r'/'%0D'}"
+        echo "::set-output name=mod_description::$desc"
+    - name: Upload bannerlord folder
+      uses: actions/upload-artifact@v3
+      with:
+        name: bannerlord
+        path: ./bannerlord
+
+
+  publish-on-github:
+    needs: ["build-module"]
+    uses: ./.github/workflows/release-github.yml
+    with:
+      mod_id: CustomSpawns
+      mod_version: ${{ needs.build-module.outputs.mod_version }}
+      mod_description: ${{ needs.build-module.outputs.mod_description }}
+      artifact_name: bannerlord
+
+  publish-on-steam:
+    needs: ["build-module"]
+    uses: ./.github/workflows/release-steam.yml
+    with:
+      workshop_id: ${{ inputs.workshop_id }}
+      mod_id: ${{ inputs.mod_id }}
+      mod_description: ${{ needs.build-module.outputs.mod_description }}
+      artifact_name: bannerlord
+    secrets:
+      STEAM_LOGIN: ${{ secrets.STEAM_WORKSHOP_LOGIN }}
+      STEAM_PASSWORD: ${{ secrets.STEAM_WORKSHOP_PASSWORD }}
+      STEAM_AUTH_CODE: ${{ secrets.STEAM_WORKSHOP_AUTH_CODE }}
