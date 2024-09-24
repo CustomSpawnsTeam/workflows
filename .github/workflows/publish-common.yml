@@ -28,7 +28,7 @@ jobs:
         dotnet-version: 6.0.x
     - name: Build
       run: |
-        artifact=$(pwd)/bannerlord
+        artifact=$(pwd)/artifact
         mkdir -p $artifact;
         proj="${{ inputs.mod_id }}/${{ inputs.mod_id }}.csproj";
         dotnet clean $proj --configuration Release;
