@@ -65,7 +65,7 @@ jobs:
       mod_id: CustomSpawns
       mod_version: ${{ needs.build-module.outputs.mod_version }}
       mod_description: ${{ needs.build-module.outputs.mod_description }}
-      artifact_name: artifact
+      artifact_name: bannerlord
 
   ###########################
   #          STEAM          #
@@ -77,7 +77,7 @@ jobs:
       workshop_id: ${{ inputs.workshop_id }}
       mod_id: ${{ inputs.mod_id }}
       mod_description: ${{ needs.build-module.outputs.mod_description }}
-      artifact_name: artifact
+      artifact_name: bannerlord
     secrets:
       STEAM_LOGIN: ${{ secrets.STEAM_WORKSHOP_LOGIN }}
       STEAM_PASSWORD: ${{ secrets.STEAM_WORKSHOP_PASSWORD }}
