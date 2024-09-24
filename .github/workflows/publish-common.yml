@@ -52,7 +52,7 @@ jobs:
     - name: Upload bannerlord folder
       uses: actions/upload-artifact@v4
       with:
-        name: artifact
+        name: bannerlord
         path: ./artifact
 
   ###########################
