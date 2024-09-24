@@ -50,9 +50,9 @@ jobs:
         desc="${desc//$'\r'/'%0D'}"
         echo "::set-output name=mod_description::$desc"
     - name: Upload bannerlord folder
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: bannerlord
+        name: artifact
         path: ./artifact
 
   ###########################
@@ -65,7 +65,7 @@ jobs:
       mod_id: CustomSpawns
       mod_version: ${{ needs.build-module.outputs.mod_version }}
       mod_description: ${{ needs.build-module.outputs.mod_description }}
-      artifact_name: bannerlord
+      artifact_name: artifact
 
   ###########################
   #          STEAM          #
@@ -77,7 +77,7 @@ jobs:
       workshop_id: ${{ inputs.workshop_id }}
       mod_id: ${{ inputs.mod_id }}
       mod_description: ${{ needs.build-module.outputs.mod_description }}
-      artifact_name: bannerlord
+      artifact_name: artifact
     secrets:
       STEAM_LOGIN: ${{ secrets.STEAM_WORKSHOP_LOGIN }}
       STEAM_PASSWORD: ${{ secrets.STEAM_WORKSHOP_PASSWORD }}
