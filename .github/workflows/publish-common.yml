@@ -49,7 +49,7 @@ jobs:
         desc="${desc//$'\r'/'%0D'}"
         echo "::set-output name=mod_description::$desc"
     - name: Upload bannerlord folder
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: bannerlord
         path: ./bannerlord
@@ -60,7 +60,7 @@ jobs:
   publish-on-github:
     needs: ["build-module"]
     uses: BUTR/workflows/.github/workflows/release-github.yml@master
-    with:
+    with: 
       mod_id: CustomSpawns
       mod_version: ${{ needs.build-module.outputs.mod_version }}
       mod_description: ${{ needs.build-module.outputs.mod_description }}
@@ -69,15 +69,15 @@ jobs:
   ###########################
   #          STEAM          #
   ###########################
-  publish-on-steam:
-    needs: ["build-module"]
-    uses: BUTR/workflows/.github/workflows/release-steam.yml@master
-    with:
-      workshop_id: ${{ inputs.workshop_id }}
-      mod_id: ${{ inputs.mod_id }}
-      mod_description: ${{ needs.build-module.outputs.mod_description }}
-      artifact_name: bannerlord
-    secrets:
-      STEAM_LOGIN: ${{ secrets.STEAM_WORKSHOP_LOGIN }}
-      STEAM_PASSWORD: ${{ secrets.STEAM_WORKSHOP_PASSWORD }}
-      STEAM_AUTH_CODE: ${{ secrets.STEAM_WORKSHOP_AUTH_CODE }}
+#  publish-on-steam:
+#    needs: ["build-module"]
+#    uses: BUTR/workflows/.github/workflows/release-steam.yml@master
+#    with:
+#      workshop_id: ${{ inputs.workshop_id }}
+#      mod_id: ${{ inputs.mod_id }}
+#      mod_description: ${{ needs.build-module.outputs.mod_description }}
+#      artifact_name: bannerlord
+#    secrets:
+#      STEAM_LOGIN: ${{ secrets.STEAM_WORKSHOP_LOGIN }}
+#      STEAM_PASSWORD: ${{ secrets.STEAM_WORKSHOP_PASSWORD }}
+#      STEAM_AUTH_CODE: ${{ secrets.STEAM_WORKSHOP_AUTH_CODE }}
