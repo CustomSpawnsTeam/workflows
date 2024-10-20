@@ -33,7 +33,6 @@ jobs:
         proj="${{ inputs.mod_id }}/${{ inputs.mod_id }}.csproj";
         dotnet clean $proj --configuration Release;
         dotnet build $proj --configuration Release -p:GameFolder="$artifact";
-        cd $artifact
 
     - name: Install Bannerlord.ChangelogParser
       run: dotnet tool install -g Bannerlord.ChangelogParser;
