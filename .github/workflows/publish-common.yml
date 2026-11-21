@@ -13,6 +13,7 @@ on:
         required: false
         type: string
         default: ""
+      # Found from the mod's files on Nexus when empty: the newest file whose name starts with mod_id
       nexusmods_file_group_id:
         required: false
         type: string
@@ -27,10 +28,11 @@ on:
         required: false
         type: string
         default: ""
+      # Defaults to the release tag of the version this module's SubModule.xml depends on
       bundle_ref:
         required: false
         type: string
-        default: master
+        default: ""
     secrets:
       STEAM_WORKSHOP_LOGIN:
         required: true
@@ -47,6 +49,7 @@ jobs:
     outputs:
       mod_version: ${{ steps.changelog.outputs.mod_version }}
       mod_description: ${{ steps.changelog.outputs.mod_description }}
+      mod_filename: ${{ steps.filename.outputs.mod_filename }}
     steps:
     - uses: actions/checkout@v2
     - name: Setup .NET
@@ -78,18 +81,50 @@ jobs:
           echo "${desc//$'\r'/}"
           echo "$eof"
         } >> "$GITHUB_OUTPUT"
+
+    # Names the release like "CustomSpawns 2.3.0 - For Bannerlord v1.5.7" or "... v1.4.7 and v1.4.8"
+    - name: Name the release file
+      id: filename
+      env:
+        MOD_ID: ${{ inputs.mod_id }}
+        MOD_VERSION: ${{ steps.changelog.outputs.mod_version }}
+      run: |
+        mapfile -t versions < <(tr -d '\r' < supported-game-versions.txt | grep . | sort -V)
+        games="${versions[-1]}"
+        if [ ${#versions[@]} -gt 1 ]
+        then
+          first=("${versions[@]:0:${#versions[@]}-1}")
+          games="$(IFS=,; echo "${first[*]}" | sed 's/,/, /g') and $games"
+        fi
+        echo "mod_filename=$MOD_ID $MOD_VERSION - For Bannerlord $games" >> "$GITHUB_OUTPUT"
+
     - name: Upload bannerlord folder
       uses: actions/upload-artifact@v4
       with:
         name: bannerlord
         path: ./bannerlord
 
+    - name: Find the bundled module's release
+      id: bundle_ref
+      if: inputs.bundle_mod_id != ''
+      env:
+        BUNDLE_MOD_ID: ${{ inputs.bundle_mod_id }}
+        BUNDLE_REF: ${{ inputs.bundle_ref }}
+      run: |
+        ref="$BUNDLE_REF"
+        if [ -z "$ref" ]
+        then
+          ref="$(grep -o "DependedModule Id=\"$BUNDLE_MOD_ID\" DependentVersion=\"[^\"]*" SubModule.xml | sed 's/.*DependentVersion="//')"
+        fi
+        if [ -z "$ref" ]; then echo "::error::SubModule.xml doesn't depend on $BUNDLE_MOD_ID"; exit 1; fi
+        echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
     - name: Checkout bundled module
       if: inputs.bundle_mod_id != ''
       uses: actions/checkout@v4
       with:
         repository: ${{ github.repository_owner }}/${{ inputs.bundle_mod_id }}
-        ref: ${{ inputs.bundle_ref }}
+        ref: ${{ steps.bundle_ref.outputs.ref }}
         path: bundle-source
 
     - name: Build Nexus bundle
@@ -139,18 +174,50 @@ jobs:
   ###########################
   #        NEXUSMODS        #
   ###########################
+  # A file group keeps one Nexus file across its versions, unlike the id of each uploaded version
+  find-nexusmods-file-group:
+    if: inputs.nexusmods_mod_id != ''
+    runs-on: ubuntu-latest
+    outputs:
+      file_group_id: ${{ steps.find.outputs.file_group_id }}
+    steps:
+    - name: Find the file group
+      id: find
+      env:
+        NEXUSMODS_APIKEY: ${{ secrets.NEXUSMODS_APIKEY }}
+        FILE_GROUP_ID: ${{ inputs.nexusmods_file_group_id }}
+        MOD_ID: ${{ inputs.mod_id }}
+        API: https://api.nexusmods.com
+        GAME: mountandblade2bannerlord
+        NEXUS_MOD: ${{ inputs.nexusmods_mod_id }}
+      run: |
+        group="$FILE_GROUP_ID"
+        if [ -z "$group" ]
+        then
+          prefix="$(echo "$MOD_ID" | tr 'A-Z' 'a-z' | tr -cd 'a-z0-9')"
+          file="$(curl -sSf -H "apikey: $NEXUSMODS_APIKEY" "$API/v1/games/$GAME/mods/$NEXUS_MOD/files.json" \
+            | jq -r --arg p "$prefix" '[.files[] | select(.name | ascii_downcase | gsub("[^a-z0-9]"; "") | startswith($p))]
+                | sort_by(.uploaded_timestamp) | last | .file_id // empty')"
+          if [ -z "$file" ]; then echo "::error::No Nexus file of mod $NEXUS_MOD is named after $MOD_ID"; exit 1; fi
+          group="$(curl -sSf -H "apikey: $NEXUSMODS_APIKEY" "$API/v3/games/$GAME/mod-file-versions/$file" | jq -r '.data.file.id // empty')"
+          if [ -z "$group" ]; then echo "::error::No file group found for Nexus file $file"; exit 1; fi
+        fi
+        echo "file_group_id=$group" >> "$GITHUB_OUTPUT"
+
   publish-on-nexusmods:
     if: inputs.nexusmods_mod_id != ''
-    needs: ["build-module"]
+    needs: ["build-module", "find-nexusmods-file-group"]
     uses: BUTR/workflows/.github/workflows/release-nexusmods.yml@master
     with:
       nexusmods_game_id: mountandblade2bannerlord
       nexusmods_mod_id: ${{ inputs.nexusmods_mod_id }}
-      nexusmods_file_group_id: ${{ inputs.nexusmods_file_group_id }}
-      mod_filename: ${{ inputs.mod_id }}
+      nexusmods_file_group_id: ${{ needs.find-nexusmods-file-group.outputs.file_group_id }}
+      mod_filename: ${{ needs.build-module.outputs.mod_filename }}
       mod_version: ${{ needs.build-module.outputs.mod_version }}
       mod_description: ${{ needs.build-module.outputs.mod_description }}
       artifact_name: ${{ inputs.bundle_mod_id != '' && 'nexus-bundle' || 'bannerlord' }}
       primary_mod_manager_download: ${{ inputs.nexusmods_primary_download }}
+      # The mod page shows the version of its primary file
+      update_mod_version: ${{ inputs.nexusmods_primary_download }}
     secrets:
       NEXUSMODS_APIKEY: ${{ secrets.NEXUSMODS_APIKEY }}
