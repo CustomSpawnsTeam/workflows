@@ -9,6 +9,14 @@ on:
       workshop_id:
         required: true
         type: number
+      nexusmods_mod_id:
+        required: false
+        type: string
+        default: ""
+      nexusmods_file_group_id:
+        required: false
+        type: string
+        default: ""
     secrets:
       STEAM_WORKSHOP_LOGIN:
         required: true
@@ -16,6 +24,8 @@ on:
         required: true
       STEAM_WORKSHOP_AUTH_CODE:
         required: true
+      NEXUSMODS_APIKEY:
+        required: false
 
 jobs:
   build-module:
@@ -81,3 +91,21 @@ jobs:
       STEAM_LOGIN: ${{ secrets.STEAM_WORKSHOP_LOGIN }}
       STEAM_PASSWORD: ${{ secrets.STEAM_WORKSHOP_PASSWORD }}
       STEAM_AUTH_CODE: ${{ secrets.STEAM_WORKSHOP_AUTH_CODE }}
+
+  ###########################
+  #        NEXUSMODS        #
+  ###########################
+  publish-on-nexusmods:
+    if: inputs.nexusmods_mod_id != ''
+    needs: ["build-module"]
+    uses: BUTR/workflows/.github/workflows/release-nexusmods.yml@master
+    with:
+      nexusmods_game_id: mountandblade2bannerlord
+      nexusmods_mod_id: ${{ inputs.nexusmods_mod_id }}
+      nexusmods_file_group_id: ${{ inputs.nexusmods_file_group_id }}
+      mod_filename: ${{ inputs.mod_id }}
+      mod_version: ${{ needs.build-module.outputs.mod_version }}
+      mod_description: ${{ needs.build-module.outputs.mod_description }}
+      artifact_name: bannerlord
+    secrets:
+      NEXUSMODS_APIKEY: ${{ secrets.NEXUSMODS_APIKEY }}
